@@ -17,7 +17,6 @@ V_MIN = -0.2        # Vận tốc lùi tối đa (m/s)
 W_MAX = 1.5         # Vận tốc góc tối đa (rad/s)
 MAX_ACCEL = 0.5     # Gia tốc dài tối đa (m/s^2)
 MAX_W_ACCEL = 2.0   # Gia tốc góc tối đa (rad/s^2)
-WHEEL_RADIUS = 0.075# (Bán kính bánh xe(m))  
-WHEEL_BASE = 0.36 #(Khoảng cách giữa hai bánh(m))
+
 # Chu kỳ thời gian mô phỏng
 DT = 0.1            # Bước thời gian cho mỗi vòng lặp (giây)
