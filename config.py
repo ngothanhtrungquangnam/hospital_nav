@@ -5,6 +5,11 @@ MAP_WIDTH = 40.0   # mét
 MAP_HEIGHT = 20.0  # mét
 RESOLUTION = 0.1   # Độ phân giải lưới (mét/ô)
 
+# Thong so ban do va phong vat can bo sung
+DOOR_WIDTH = 1.2        # [m] bề rộng cửa phòng
+CORRIDOR_WIDTH = 2.8    # [m] bề rộng hành lang chính
+SAFETY_MARGIN = 0.10    # [m] biên an toàn khi phồng vật cản
+
 # Thông số vật lý của Robot
 ROBOT_RADIUS = 0.25 # Bán kính an toàn của robot (m)
 V_MAX = 1.0         # Vận tốc dài tối đa (m/s)
