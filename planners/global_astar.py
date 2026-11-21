@@ -254,7 +254,10 @@ class SubGoalSelector:
       1. chieu vi tri robot len duong gap khuc (chi xet cac doan tu doan hien tai tro di,
          trong cua so ``window`` doan -> khong "nhay tat" sang phan duong xa hon),
       2. sub-goal = diem tren duong cach hinh chieu `lookahead` [m] ve phia truoc
-         (bi chan o diem cuoi cua duong).
+         (bi chan o diem cuoi cua duong),
+      3. KHONG cho sub-goal vuot qua "khuc ngoat" ke tiep (waypoint ma duong re hon `corner_angle_deg`)
+         cho den khi robot di qua khuc ngoat do. Neu khong, robot nhin tat qua goc va dam vao khung
+         cua (canh cua chi hon duong kinh robot ~0.35 m moi ben). Dat corner_angle_deg=None de tat.
 
     Dung trong vong lap mo phong::
 
@@ -263,7 +266,8 @@ class SubGoalSelector:
         v, w, traj = local_planner.compute_control(state, sub_goal, points, dt)
     """
 
-    def __init__(self, waypoints, lookahead: float = 1.5, goal_tol: float = 0.3, window: int = 20):
+    def __init__(self, waypoints, lookahead: float = 1.5, goal_tol: float = 0.3, window: int = 20,
+                 corner_angle_deg: float | None = 25.0, corner_tol: float = 0.1):
         w = np.asarray(waypoints, dtype=float).reshape(-1, 2)
         if len(w) == 0:
             raise ValueError("waypoints rong")
@@ -274,6 +278,13 @@ class SubGoalSelector:
         self.seg_len = np.hypot(d[:, 0], d[:, 1]) if len(d) else np.zeros(0)
         self.cum = np.concatenate([[0.0], np.cumsum(self.seg_len)])
         self.total = float(self.cum[-1])
+        self.corner_tol = float(corner_tol)
+        # chi so cac waypoint la "khuc ngoat": goc re giua hai doan lien tiep > corner_angle_deg
+        self.corner_s = np.zeros(0)                                 # cung dai [m] cua cac khuc ngoat
+        if corner_angle_deg is not None and len(d) >= 2:
+            h = np.arctan2(d[:, 1], d[:, 0])
+            turn = np.abs((np.diff(h) + np.pi) % (2.0 * np.pi) - np.pi)
+            self.corner_s = self.cum[1:-1][turn > np.radians(corner_angle_deg)]
         self.reset()
 
     def reset(self) -> None:
@@ -299,7 +310,11 @@ class SubGoalSelector:
             k = int(np.argmin(np.hypot(*(proj - p).T)))
             self.seg += k
             self.s = max(self.s, float(self.cum[self.seg] + t[k] * L[k]))   # khong cho lui
-        sub_goal = self._point_at(self.s + self.lookahead)
+        s_target = self.s + self.lookahead
+        ahead = self.corner_s[self.corner_s > self.s + self.corner_tol]      # khuc ngoat con o phia truoc
+        if len(ahead):
+            s_target = min(s_target, float(ahead[0]))                         # khong nhin vuot qua khuc ngoat
+        sub_goal = self._point_at(s_target)
         reached = bool(np.hypot(*(p - self.wp[-1])) <= self.goal_tol)
         return sub_goal, reached
 

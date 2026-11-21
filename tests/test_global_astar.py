@@ -133,6 +133,18 @@ def test_subgoal_selector_follows_path():
     assert 0.5 < np.hypot(*(sg0 - np.asarray(m.start))) <= 1.5 + 1e-6
 
 
+def test_subgoal_does_not_cut_corners():
+    wp = np.array([[0.0, 0.0], [5.0, 0.0], [5.0, 5.0]])            # re vuong goc tai (5, 0)
+    clip = SubGoalSelector(wp, lookahead=3.0)                        # mac dinh: chan o khuc ngoat
+    free = SubGoalSelector(wp, lookahead=3.0, corner_angle_deg=None)
+    sg_clip, _ = clip.update((3.0, 0.0))
+    sg_free, _ = free.update((3.0, 0.0))
+    assert np.allclose(sg_clip, [5.0, 0.0]), "sub-goal phai dung o khuc ngoat"
+    assert np.allclose(sg_free, [5.0, 1.0]), "khi tat chan, sub-goal di vuot khuc ngoat"
+    sg_after, _ = clip.update((5.0, 0.2))                            # da qua khuc ngoat -> duoc nhin tiep
+    assert sg_after[1] > 2.0 and abs(sg_after[0] - 5.0) < 1e-9
+
+
 def test_plan_route_through_stops():
     m = HospitalMap()
     p = GlobalAStarPlanner(m)
