@@ -243,19 +243,19 @@ class APFPlanner(LocalPlanner):
 
         early_horizon = min(6 if closing_fast else 3, k)
         early_min = float(step_min[:early_horizon].min())
-        stop_thresh = 0.25 if closing_fast else 0.04
+        stop_thresh = 0.30 if closing_fast else 0.05
         if early_min <= stop_thresh:
             return 0.0, True
 
         min_clearance = float(step_min.min())
-        safe_band = max(self.clearance_margin + self.stop_gap, 0.14)
+        safe_band = max(self.clearance_margin + self.stop_gap, 0.16)
         if closing_fast:
-            safe_band = max(safe_band, 0.70)
+            safe_band = max(safe_band, 0.75)
 
         if min_clearance >= safe_band:
             return 1.0, False
 
-        if closing_fast and min_clearance < 0.42:
+        if closing_fast and min_clearance < 0.48:
             return 0.0, True
 
         ratio = float(np.clip(min_clearance / safe_band, 0.0, 1.0))
@@ -274,7 +274,7 @@ class APFPlanner(LocalPlanner):
         emergency_brake: bool = False,
     ) -> tuple[float, float]:
         if self.max_accel > 0.0:
-            accel_mult = 1.6 if (emergency_brake and raw_v <= 1e-6) else 1.0
+            accel_mult = 2.0 if (emergency_brake and raw_v <= 1e-6) else 1.0
             dv = self.max_accel * accel_mult * step_dt
             v_cmd = float(np.clip(raw_v, cur_v - dv, cur_v + dv))
         else:
@@ -365,6 +365,7 @@ class APFPlanner(LocalPlanner):
             self._closing *= 0.5
         self._dlane_prev = d_lane if math.isfinite(d_lane) else None
         obst_closing = max(0.0, self._closing - max(cur_v, 0.0))
+        near_closing = (obst_closing > 0.12 or self._closing > 0.65) and (d_lane < 1.15 or s_min_all < 0.85)
         closing_fast = (obst_closing > 0.12 or self._closing > 0.65) and d_lane < 2.40
 
         # ---- lan theo huong muc tieu: co bi chan khong? ----
@@ -427,7 +428,7 @@ class APFPlanner(LocalPlanner):
                 else float(np.clip((self.block_dist - d_goal_lane) / max(self.block_dist - 0.2, _EPS), 0.0, 1.0))
             )
             tvec = np.array([-ug[1], ug[0]], dtype=float) * self._side
-            tan_boost = 1.20 if closing_fast else 1.0
+            tan_boost = 1.25 if closing_fast else 1.0
             f_tan = self.k_tangent * self.k_att * max(urgency, 0.45) * tan_boost * tvec
 
         if escaping:
@@ -479,16 +480,16 @@ class APFPlanner(LocalPlanner):
         must_stop = False
         if math.isfinite(d_lane):
             a_dec = self.brake_ratio * (self.max_accel if self.max_accel > 0.0 else 1.0)
-            extra_margin = self.stop_gap + (0.28 if closing_fast else 0.0)
-            d_eff = d_lane - extra_margin - obst_closing * self.ttc_horizon
-            stop_cut = 0.20 if closing_fast else 0.03
+            extra_margin = self.stop_gap + (0.35 if near_closing else 0.0)
+            d_eff = d_lane - extra_margin - obst_closing * (self.ttc_horizon * (1.10 if near_closing else 1.0))
+            stop_cut = 0.25 if near_closing else 0.03
             if d_eff <= stop_cut:
                 target_v = 0.0
                 must_stop = True
             else:
                 target_v = min(target_v, math.sqrt(2.0 * a_dec * d_eff))
 
-        allow_stop_now = must_stop or (closing_fast and d_lane < 0.85)
+        allow_stop_now = must_stop or (near_closing and d_lane < 0.85)
         raw_v = float(np.clip(target_v, 0.0 if allow_stop_now else self.v_min, self.v_max))
         v_cmd, w_cmd = self._apply_rate_limits(
             raw_v,
@@ -497,12 +498,12 @@ class APFPlanner(LocalPlanner):
             cur_w,
             step_dt,
             allow_stop=allow_stop_now,
-            emergency_brake=closing_fast,
+            emergency_brake=near_closing,
         )
 
         # ---- danh gia an toan tren quy dao du doan ----
         pred_traj = self._rollout_trajectory(x, y, theta, v_cmd, w_cmd, horizon_dt)
-        traj_scale, traj_stop = self._traj_safety_scale(pred_traj, pts, is_maneuvering, closing_fast)
+        traj_scale, traj_stop = self._traj_safety_scale(pred_traj, pts, is_maneuvering, near_closing)
         if traj_stop or traj_scale < 1.0:
             adj_raw_v = 0.0 if traj_stop else float(np.clip(raw_v * traj_scale, 0.0, self.v_max))
             stop_flag = allow_stop_now or traj_stop or adj_raw_v <= 1e-6
@@ -513,7 +514,7 @@ class APFPlanner(LocalPlanner):
                 cur_w,
                 step_dt,
                 allow_stop=stop_flag,
-                emergency_brake=(closing_fast or traj_stop),
+                emergency_brake=(near_closing or traj_stop),
             )
             pred_traj = self._rollout_trajectory(x, y, theta, v_cmd, w_cmd, horizon_dt)
 
