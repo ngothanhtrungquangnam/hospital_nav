@@ -38,6 +38,8 @@ class Robot:
         w=0.0
     ):
         self.radius = config.ROBOT_RADIUS
+        self.wheel_radius = config.WHEEL_RADIUS
+        self.wheel_base = config.WHEEL_BASE
 
         # Giới hạn vận tốc
         self.v_max = config.V_MAX
@@ -234,45 +236,34 @@ class Robot:
 
         return self.get_state()
 
-    def wheel_speeds(self, wheel_radius, wheel_base):
+    
+    def wheel_speeds(self):
         """
         Tính vận tốc góc của hai bánh xe.
 
-        Input:
-            wheel_radius : bán kính bánh xe (m)
-            wheel_base   : khoảng cách hai bánh xe (m)
-
-        Output:
-            (omega_left, omega_right) [rad/s]
-
-        Chưa sử dụng trực tiếp trong vòng lặp điều khiển
-        vì config.py hiện chưa quy định hình học bánh xe.
+        Returns:
+            omega_left  : Vận tốc góc bánh trái (rad/s)
+            omega_right : Vận tốc góc bánh phải (rad/s)
         """
 
-        wheel_radius = self._validate_finite(
-            wheel_radius,
-            "wheel_radius"
-        )
+        r = self.wheel_radius
+        L = self.wheel_base
 
-        wheel_base = self._validate_finite(
-            wheel_base,
-            "wheel_base"
-        )
+        if r <= 0.0 or L <= 0.0:
+            raise ValueError("Invalid wheel geometry.")
 
-        if wheel_radius <= 0.0 or wheel_base <= 0.0:
-            raise ValueError(
-                "wheel_radius and wheel_base must be positive."
-            )
-
+        # Vận tốc góc bánh trái
         omega_left = (
-            self.v - self.w * wheel_base / 2.0
-        ) / wheel_radius
+            self.v - self.w * L / 2.0
+        ) / r
 
+        # Vận tốc góc bánh phải
         omega_right = (
-            self.v + self.w * wheel_base / 2.0
-        ) / wheel_radius
+            self.v + self.w * L / 2.0
+        ) / r
 
         return omega_left, omega_right
+
 
     def __repr__(self):
         return (
