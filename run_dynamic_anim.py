@@ -1,4 +1,4 @@
-"""run_dwa_anim.py -- Mo phong hoat hoa robot AGV dieu huong thoi gian thuc.
+"""run_dynamic_anim.py -- Mo phong hoat hoa robot AGV dieu huong thoi gian thuc.
 
 Ket hop:
   * Thuat toan toan cuc: Global A* tren ban do benh vien (HospitalMap)
@@ -7,11 +7,11 @@ Ket hop:
   * Cac tac nhan dong (Pedestrians): nguoi di kham, y ta day xe thuoc, xe lan, benh nhan
 
 Cach chay (PowerShell):
-  python run_dwa_anim.py               # Mac dinh: DWA + A*, dich: G2
-  python run_dwa_anim.py dwa G2        # DWA toi Khoa Ngoai (G2)
-  python run_dwa_anim.py apf G1        # APF toi Khoa Noi (G1)
-  python run_dwa_anim.py vfh G3        # VFH toi Phong xet nghiem (G3)
-  python run_dwa_anim.py --planner vfh --goal G4
+  python run_dynamic_anim.py               # Mac dinh: DWA + A*, dich: G2
+  python run_dynamic_anim.py dwa G2        # DWA toi Khoa Ngoai (G2)
+  python run_dynamic_anim.py apf G1        # APF toi Khoa Noi (G1)
+  python run_dynamic_anim.py vfh G3        # VFH toi Phong xet nghiem (G3)
+  python run_dynamic_anim.py --planner vfh --goal G4
 """
 from __future__ import annotations
 
