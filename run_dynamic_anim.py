@@ -176,7 +176,7 @@ def main():
         title=f"AGV DYNAMIC NAVIGATION [{planner.name} + A*] — Đích: {goal_key} ({goal_desc})",
         style="blueprint",
         show_inflated=True, show_doors=True, show_dims=True,
-        show_scalebar=False,
+        show_scalebar=False, show_north=False,
     )
     ax.set_xlim(-0.5, 40.5)
     ax.set_ylim(-0.5, 20.5)
@@ -209,12 +209,13 @@ def main():
     # Quỹ đạo cục bộ dự đoán (cam nổi bật)
     (pred_line,) = ax.plot([], [], "--", color="#FB923C", linewidth=2.0, zorder=11, label=f"Dự đoán {planner.name}")
 
-    # Bảng Telemetry HUD đặt gọn gàng trong phòng THANG MÁY / KHO (góc dưới bên phải)
+    # Bảng Telemetry HUD đặt gọn gàng trong phòng THANG MÁY / KHO (căn lề đều từ trái sang phải)
     hud_box = ax.text(
-        0.980, 0.025, "", transform=ax.transAxes,
-        fontsize=7.8, fontweight="bold",
+        0.965, 0.035, "", transform=ax.transAxes,
+        fontsize=7.8, fontweight="bold", family="monospace",
         verticalalignment="bottom", horizontalalignment="right",
-        bbox=dict(boxstyle="round,pad=0.45", facecolor="#020617", edgecolor="#38BDF8", alpha=0.92),
+        multialignment="left",
+        bbox=dict(boxstyle="round,pad=0.5", facecolor="#020617", edgecolor="#38BDF8", alpha=0.95, lw=1.2),
         color="#E2E8F0", zorder=25,
     )
 
@@ -327,8 +328,8 @@ def main():
         status_color = "#4ADE80" if mission_complete else "#38BDF8"
 
         hud_box.set_text(
-            f"  AGV DYNAMIC TELEMETRY  \n"
-            f"-------------------------\n"
+            f"    AGV DYNAMIC TELEMETRY\n"
+            f"---------------------------------\n"
             f"• Planner    : {planner.name} + A*\n"
             f"• Goal Target: {goal_key} ({goal_desc})\n"
             f"• Position X : {state[0]:.2f} m\n"
