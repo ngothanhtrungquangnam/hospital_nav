@@ -176,6 +176,7 @@ def main():
         title=f"AGV DYNAMIC NAVIGATION [{planner.name} + A*] — Đích: {goal_key} ({goal_desc})",
         style="blueprint",
         show_inflated=True, show_doors=True, show_dims=True,
+        show_scalebar=False,
     )
     ax.set_xlim(-0.5, 40.5)
     ax.set_ylim(-0.5, 20.5)
@@ -208,12 +209,12 @@ def main():
     # Quỹ đạo cục bộ dự đoán (cam nổi bật)
     (pred_line,) = ax.plot([], [], "--", color="#FB923C", linewidth=2.0, zorder=11, label=f"Dự đoán {planner.name}")
 
-    # Bảng Telemetry HUD góc trên bên phải
+    # Bảng Telemetry HUD đặt gọn gàng trong phòng THANG MÁY / KHO (góc dưới bên phải)
     hud_box = ax.text(
-        0.985, 0.965, "", transform=ax.transAxes,
-        fontsize=8.5, fontweight="bold",
-        verticalalignment="top", horizontalalignment="right",
-        bbox=dict(boxstyle="round,pad=0.55", facecolor="#020617", edgecolor="#38BDF8", alpha=0.92),
+        0.980, 0.025, "", transform=ax.transAxes,
+        fontsize=7.8, fontweight="bold",
+        verticalalignment="bottom", horizontalalignment="right",
+        bbox=dict(boxstyle="round,pad=0.45", facecolor="#020617", edgecolor="#38BDF8", alpha=0.92),
         color="#E2E8F0", zorder=25,
     )
 
