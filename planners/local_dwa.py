@@ -59,15 +59,18 @@ class DWAPlanner(LocalPlanner):
 
     def __init__(
         self,
-        predict_time=1.5,
+        predict_time=1.2,
         v_resolution=0.05,
         w_resolution=0.1,
-        alpha=0.2,
-        beta=0.3,
-        gamma=0.5,
-        safety_margin=0.1,
+        alpha=0.35,
+        beta=0.25,
+        gamma=0.4,
+        safety_margin=0.06,
         clearance_distance=1.0,
-        goal_tolerance=0.25
+        goal_tolerance=0.05,
+        lookahead=4.2,
+        offset=1.0,
+        min_align=0.35,
     ):
         # -------------------------------------------------
         # 1. Robot physical parameters from shared config
@@ -130,6 +133,10 @@ class DWAPlanner(LocalPlanner):
         self.alpha = float(weights[0])
         self.beta = float(weights[1])
         self.gamma = float(weights[2])
+
+        self.lookahead = float(lookahead)
+        self.offset = float(offset)
+        self.min_align = float(min_align)
 
         # Debug information for testing and tuning
         self.last_debug = {}
@@ -451,14 +458,17 @@ class DWAPlanner(LocalPlanner):
     # 6. VELOCITY SCORE
     # =====================================================
 
-    def calc_velocity_score(self, v):
+    def calc_velocity_score(self, v, heading_score=1.0):
         """
         Ưu tiên vận tốc tiến dương.
-        v <= 0 không nhận điểm thưởng để tránh robot đứng im ăn điểm.
+        Tự động điều chỉnh theo độ thẳng hàng với mục tiêu: đi nhanh khi đường
+        phía trước thẳng, tự động giảm tốc an toàn khi cần rẽ góc lớn để không bị
+        văng qua khúc ngoặt hoặc va vào khung cửa.
         """
         if v <= 0.0:
             return 0.0
-        return float(min(v / self.v_max, 1.0))
+        align = max(self.min_align, float(heading_score))
+        return float((v / self.v_max) * align)
 
     # =====================================================
     # 7. EMERGENCY BRAKING
@@ -580,6 +590,28 @@ class DWAPlanner(LocalPlanner):
 
             return float(v_cmd), float(w_cmd), pred_traj
 
+        # Tinh toan muc tieu hieu dung khi co vat can chua biet chan ngay tren duong
+        effective_goal = np.array(sub_goal, dtype=np.float64, copy=True)
+        if points is not None and len(points) > 0:
+            dist_to_sub = float(math.hypot(sub_goal[0] - x, sub_goal[1] - y))
+            # Chi kich hoat ne vat can khi tren duong thoang (sub_goal > 1.5m),
+            # tranh can thiep khi dang qua cua hep hoac sat dich
+            if dist_to_sub > 1.5:
+                c, s = math.cos(theta), math.sin(theta)
+                dx = points[:, 0] - x
+                dy = points[:, 1] - y
+                xr = dx * c + dy * s
+                yr = -dx * s + dy * c
+                in_front = (xr > 0.3) & (xr < self.lookahead) & (np.abs(yr) < self.robot_radius + 0.35)
+                if np.any(in_front):
+                    left_pts = np.sum((xr > 0.2) & (xr < self.lookahead) & (yr > 0) & (yr < 2.0))
+                    right_pts = np.sum((xr > 0.2) & (xr < self.lookahead) & (yr < 0) & (yr > -2.0))
+                    steer_dir = -1.0 if left_pts >= right_pts else 1.0
+                    perp_x = -s * steer_dir
+                    perp_y = c * steer_dir
+                    effective_goal[0] += perp_x * self.offset
+                    effective_goal[1] += perp_y * self.offset
+
         # -------------------------------------------------
         # Step 1: Calculate Dynamic Window
         # -------------------------------------------------
@@ -653,12 +685,12 @@ class DWAPlanner(LocalPlanner):
                     state,
                     trajectory,
                     float(w),
-                    sub_goal
+                    effective_goal
                 )
 
                 # 3.4 Calculate velocity score
                 velocity_score = (
-                    self.calc_velocity_score(float(v))
+                    self.calc_velocity_score(float(v), heading_score)
                 )
 
                 # 3.5 Overall objective function

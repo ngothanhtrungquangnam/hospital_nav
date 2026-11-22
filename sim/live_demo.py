@@ -1,18 +1,35 @@
 """sim/live_demo.py -- Mo phong dieu huong robot phong cach RViz/AGV cong nghiep voi tia LiDAR thoi gian thuc."""
 from __future__ import annotations
 
+import argparse
+import sys
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 
+from planners.local_dwa import DWAPlanner
+from planners.local_apf import APFPlanner 
+from planners.local_vfh import VFHPlanner 
 from env.hospital_map import HospitalMap, UNMAPPED_CARTS
 from env.map_view import draw_map
 from sim.simulator import Simulator
 from tests.stub_planner import StubPlanner
 import config
 
+PLANNERS = {
+    "dwa": DWAPlanner,
+    "apf": APFPlanner,
+    "vfh": VFHPlanner,
+    "stub": StubPlanner,
+}
 
-def run_visual_simulation(goal_target="G2"):
+
+def run_visual_simulation(planner_name: str = "dwa", goal_target: str = "G2"):
+    p_key = planner_name.lower().strip()
+    if p_key not in PLANNERS:
+        raise ValueError(f"Planner không hợp lệ: '{planner_name}'. Chọn một trong: {list(PLANNERS.keys())}")
+
+    planner = PLANNERS[p_key]()
     known = HospitalMap()
     world = known.with_obstacles(UNMAPPED_CARTS)
 
@@ -23,7 +40,7 @@ def run_visual_simulation(goal_target="G2"):
     # Vẽ bản đồ nền tối
     draw_map(
         world, ax, 
-        title=f"AGV INDUSTRIAL NAVIGATION MONITOR — Đích: {goal_target}", 
+        title=f"AGV NAVIGATION MONITOR [{planner.name} + A*] — Đích: {goal_target}", 
         style="blueprint",
         show_inflated=True, show_doors=True, show_dims=True
     )
@@ -111,6 +128,7 @@ def run_visual_simulation(goal_target="G2"):
         hud_box.set_text(
             f"  AGV TELEMETRY STATUS  \n"
             f"------------------------\n"
+            f"• Planner    : {planner.name} + A*\n"
             f"• Position X : {x:.2f} m\n"
             f"• Position Y : {y:.2f} m\n"
             f"• Heading (θ): {np.degrees(theta):.1f}°\n"
@@ -123,8 +141,8 @@ def run_visual_simulation(goal_target="G2"):
         plt.pause(0.005)
 
     sim = Simulator(known, world)
-    print(f"🚀 Khởi chạy mô phỏng AGV chuyên nghiệp tới {goal_target}...")
-    res = sim.run(StubPlanner(), goal=goal_target, seed=1001, callback=update_frame)
+    print(f"🚀 Khởi chạy mô phỏng AGV [{planner.name} + A*] tới {goal_target}...")
+    res = sim.run(planner, goal=goal_target, seed=1001, callback=update_frame)
 
     print(f"🏁 Trạng thái kết thúc: {res.status.upper()} | Quãng đường: {res.travelled:.2f} m")
 
@@ -133,4 +151,38 @@ def run_visual_simulation(goal_target="G2"):
 
 
 if __name__ == "__main__":
-    run_visual_simulation(goal_target="G2")
+    parser = argparse.ArgumentParser(
+        description="Live Demo mô phỏng AGV kết hợp Global A* với các bộ điều hướng cục bộ (DWA, APF, VFH)."
+    )
+    parser.add_argument(
+        "planner",
+        nargs="?",
+        default="dwa",
+        choices=["dwa", "apf", "vfh", "stub"],
+        help="Thuật toán cục bộ: dwa, apf, vfh, stub (mặc định: dwa)",
+    )
+    parser.add_argument(
+        "goal",
+        nargs="?",
+        default="G2",
+        choices=["G1", "G2", "G3", "G4"],
+        help="Điểm đích: G1, G2, G3, G4 (mặc định: G2)",
+    )
+    parser.add_argument(
+        "--planner", "-p",
+        dest="opt_planner",
+        choices=["dwa", "apf", "vfh", "stub"],
+        help="Cờ chỉ định thuật toán",
+    )
+    parser.add_argument(
+        "--goal", "-g",
+        dest="opt_goal",
+        choices=["G1", "G2", "G3", "G4"],
+        help="Cờ chỉ định điểm đích",
+    )
+
+    args = parser.parse_args()
+    chosen_planner = args.opt_planner or args.planner
+    chosen_goal = args.opt_goal or args.goal
+
+    run_visual_simulation(planner_name=chosen_planner, goal_target=chosen_goal)

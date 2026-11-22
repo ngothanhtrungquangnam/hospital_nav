@@ -22,14 +22,17 @@ class VFHPlanner(LocalPlanner):
         grid_resolution=0.1,
         max_range=3.0,
         num_sectors=72,
-        histogram_threshold=0.12,
-        safety_margin=0.25,
+        histogram_threshold=0.15,
+        safety_margin=0.08,
         clearance_distance=1.0,
-        goal_tolerance=0.25,
+        goal_tolerance=0.05,
         predict_time=2.0,
-        k_omega=2.4,
+        k_omega=1.8,
         goal_weight=0.85,
         continuity_weight=0.15,
+        lookahead=4.2,
+        offset=0.95,
+        lat_w=0.35,
     ):
         # Cartesian histogram grid
         self.grid_resolution = float(grid_resolution)
@@ -62,6 +65,10 @@ class VFHPlanner(LocalPlanner):
         self.continuity_weight = float(continuity_weight)
 
         self.sector_width = 2.0 * math.pi / self.num_sectors
+
+        self.lookahead = float(lookahead)
+        self.offset = float(offset)
+        self.lat_w = float(lat_w)
 
         # Last selected heading, expressed in robot coordinates
         self.last_direction = None
@@ -518,19 +525,7 @@ class VFHPlanner(LocalPlanner):
         # --------------------------------------------------
         dx = float(sub_goal[0] - state[0])
         dy = float(sub_goal[1] - state[1])
-
         goal_distance = math.hypot(dx, dy)
-
-        cos_theta = math.cos(float(state[2]))
-        sin_theta = math.sin(float(state[2]))
-
-        goal_local_x = cos_theta * dx + sin_theta * dy
-        goal_local_y = -sin_theta * dx + cos_theta * dy
-
-        goal_angle = math.atan2(
-            goal_local_y,
-            goal_local_x,
-        )
 
         # --------------------------------------------------
         # 4. Stop when the local goal has been reached
@@ -557,6 +552,40 @@ class VFHPlanner(LocalPlanner):
             }
 
             return v_cmd, w_cmd, pred_traj
+
+        # Dynamic obstacle lateral evasion in open corridors
+        eff_sub = np.array(sub_goal, dtype=float, copy=True)
+        if len(local_points) > 0 and goal_distance > 1.5:
+            xr = local_points[:, 0]
+            yr = local_points[:, 1]
+            in_front = (xr > 0.3) & (xr < self.lookahead) & (np.abs(yr) < self.robot_radius + self.lat_w)
+            if np.any(in_front):
+                close_mask = (xr > 0.2) & (xr < 2.5)
+                if np.any(close_mask):
+                    left_pts = np.sum(close_mask & (yr > 0) & (yr < 2.0))
+                    right_pts = np.sum(close_mask & (yr < 0) & (yr > -2.0))
+                else:
+                    left_pts = np.sum((xr > 0.2) & (xr < self.lookahead) & (yr > 0) & (yr < 2.0))
+                    right_pts = np.sum((xr > 0.2) & (xr < self.lookahead) & (yr < 0) & (yr > -2.0))
+
+                steer_dir = -1.0 if left_pts >= right_pts else 1.0
+                theta = float(state[2])
+                eff_sub[0] += -math.sin(theta) * steer_dir * self.offset
+                eff_sub[1] += math.cos(theta) * steer_dir * self.offset
+
+        cos_theta = math.cos(float(state[2]))
+        sin_theta = math.sin(float(state[2]))
+
+        edx = float(eff_sub[0] - state[0])
+        edy = float(eff_sub[1] - state[1])
+
+        goal_local_x = cos_theta * edx + sin_theta * edy
+        goal_local_y = -sin_theta * edx + cos_theta * edy
+
+        goal_angle = math.atan2(
+            goal_local_y,
+            goal_local_x,
+        )
 
         # --------------------------------------------------
         # 5. Select an available direction
@@ -591,23 +620,29 @@ class VFHPlanner(LocalPlanner):
             )
         )
 
-        # Prefer forward movement.
-        # If the selected direction is behind the robot,
-        # rotate first instead of driving backward.
-        alignment = max(
-            0.0,
-            math.cos(selected_direction),
-        )
+        # Smooth speed scaling when turning
+        turn_scale = max(0.20, math.cos(selected_direction)) ** 2
 
         if has_open_sector:
             v_target = (
                 self.v_max
-                * alignment
+                * turn_scale
                 * clearance_factor
             )
         else:
             # All sectors are blocked: stop and rotate
             v_target = 0.0
+
+        # Forward obstacle speed reduction to prevent head-on collisions
+        if len(local_points) > 0 and v_target > 0.0:
+            front_mask = (local_points[:, 0] > 0.0) & (local_points[:, 0] < 2.2) & (np.abs(local_points[:, 1]) < 0.45)
+            if np.any(front_mask):
+                min_fwd = float(np.min(local_points[front_mask, 0]))
+                if min_fwd < 1.0:
+                    v_target = min(v_target, 0.15)
+                else:
+                    fwd_factor = float(np.clip((min_fwd - self.influence_radius) / 1.0, 0.2, 1.0))
+                    v_target *= fwd_factor
 
         w_target = float(
             np.clip(
