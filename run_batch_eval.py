@@ -1,4 +1,4 @@
-﻿"""run_batch_eval.py -- Chay danh gia hang loat cho TV1 (xuat CSV, JSON va bieu do)."""
+"""run_batch_eval.py -- Chay danh gia hang loat cho TV1 (xuat CSV, JSON va bieu do)."""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +33,7 @@ def main() -> None:
         help="Danh sach planner (vd: planners.local_apf:APFPlanner planners.local_dwa:DWAPlanner)",
     )
     parser.add_argument("--seeds", nargs="+", type=int, default=[1])
-    parser.add_argument("--out-dir", default="outputs/eval")
+    parser.add_argument("--out-dir", default="outputs/eval_apf")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
